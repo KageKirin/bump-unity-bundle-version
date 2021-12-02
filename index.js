@@ -1,5 +1,6 @@
 
 const fs = require('fs');
+const yaml = require('js-yaml');
 const core = require('@actions/core');
 
 const file = core.getInput('file');
@@ -14,10 +15,11 @@ async function run()
 {
     try
     {
-        const pkg = JSON.parse(fs.readFileSync(file));
-        if (pkg.version)
+        const [doc, schema] = parse_unityfile(file);
+        console.dir({doc: doc})
+        if (doc[0].PlayerSettings.bundleVersion)
         {
-            const ver = parse_version(pkg.version);
+            const ver = parse_version(doc[0].PlayerSettings.bundleVersion);
             if (ver)
             {
                 let [major, minor, patch, prerelease, buildmetadata] = ver;
@@ -37,44 +39,46 @@ async function run()
                 {
                     patch++;
                 }
-                pkg.version = `${major}.${minor}.${patch}`;
+                doc[0].PlayerSettings.bundleVersion = `${major}.${minor}.${patch}`;
 
                 if (prerelease)
                 {
-                    pkg.version += `-${prerelease}`;
+                    doc[0].PlayerSettings.bundleVersion += `-${prerelease}`;
                 }
                 if (buildmetadata)
                 {
-                    pkg.version += `+${buildmetadata}`;
+                    doc[0].PlayerSettings.bundleVersion += `+${buildmetadata}`;
                 }
 
-                fs.writeFileSync(file, JSON.stringify(pkg, null, '  ') + '\n');
+                write_unityfile(doc, file, schema);
             }
             else
             {
-                core.setFailed("failed to parse package.json version");
+                core.setFailed(`failed to parse ${file} bundleVersion`);
             }
         }
         else
         {
-            core.setFailed("invalid package.json does not contain version");
+            core.setFailed(`invalid ${file} does not contain version`);
         }
 
         // read back
-        const pkg2 = JSON.parse(fs.readFileSync(file));
-        if (pkg2.version)
+        const [doc2, schema2] = parse_unityfile(file);
+        console.dir({doc2: doc2})
+        console.dir(doc2[0].PlayerSettings)
+        if (doc2[0].PlayerSettings.bundleVersion)
         {
-            const ver = parse_version(pkg2.version);
+            const ver = parse_version(doc2[0].PlayerSettings.bundleVersion);
             if (ver)
             {
-                core.setOutput('version', pkg2.version);
+                core.setOutput('version', doc2[0].PlayerSettings.bundleVersion);
             }
             else
             {
-                core.setFailed("failed to parse package.json version");
+                core.setFailed(`failed to parse ${file} version`);
             }
 
-            if (pkg2.version === pkg.version)
+            if (doc2[0].PlayerSettings.bundleVersion === doc[0].PlayerSettings.bundleVersion)
             {
                 // no issues
             }
@@ -85,7 +89,7 @@ async function run()
         }
         else
         {
-            core.setFailed("invalid package.json does not contain version");
+            core.setFailed(`invalid ${file} does not contain version`);
         }
     }
     catch (error)
@@ -103,6 +107,52 @@ function parse_version(version)
         return [match.groups.major, match.groups.minor, match.groups.patch, match.groups.prerelease, match.groups.buildmetadata];
     }
     return null
+}
+
+/*async */function parse_unityfile(path)
+{
+    const types = {};
+    let file = /*await fs.promises.readFile(path, 'utf8');*/ fs.readFileSync(path, 'utf8');
+
+    // remove the unity tag line
+    file = file.replace( /%TAG.+\r?\n?/, '' );
+
+    // replace each subsequent tag with the full line + map any types
+    file = file.replace( /!u!([0-9]+).+/g, ( match, p1 ) => {
+        // create our mapping for this type
+        if ( !( p1 in types ) )
+        {
+            const type = new yaml.Type( `tag:unity3d.com,2011:${p1}`, {
+                kind: 'mapping',
+                construct: function ( data ) {
+                    return data || {}; // in case of empty node
+                },
+                instanceOf: Object
+            } );
+            types[p1] = type;
+        }
+
+        return `!<tag:unity3d.com,2011:${p1}>`
+    });
+    //console.log("fixedup string\n", file)
+
+    // create our schema
+    const schema = yaml.DEFAULT_SCHEMA.extend(Object.values(types));
+
+    // parse our yaml
+    const objAr = yaml.loadAll(file, null, { schema });
+
+    return [objAr, schema];
+}
+
+function write_unityfile(objAr, path, schema)
+{
+    let str = "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n--- !u!129 &1\n"
+    objAr.forEach(element => {
+        str += yaml.dump(element, null, { schema: schema }); //noArrayIndent: true, flowLevel: -1,
+    });
+    str = str.replace(/(null)/g, '');
+    fs.writeFileSync(path, str);
 }
 
 run()

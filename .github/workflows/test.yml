@@ -10,23 +10,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      # basic simple test: just bump this package's version
-      - name: Test functionality
-        uses: ./ # Uses an action in the root directory
-        id: test
-        with:
-          major: true
-          minor: true
-          patch: true
-      - name: Print results
-        run: echo ${{ steps.test.outputs.version }}
-
       # simple test on fixed test data
       - name: Test patch on simple format
         uses: ./
         id: simple_patch
         with:
-          file: testdata/simple/package.json
+          file: testdata/simple/ProjectSettings.asset
           patch: true
       - name: Print results
         run: echo ${{ steps.simple_patch.outputs.version }}
@@ -43,7 +32,7 @@ jobs:
         uses: ./
         id: simple_minor
         with:
-          file: testdata/simple/package.json
+          file: testdata/simple/ProjectSettings.asset
           minor: true
       - name: Print results
         run: echo ${{ steps.simple_minor.outputs.version }}
@@ -60,7 +49,7 @@ jobs:
         uses: ./
         id: simple_major
         with:
-          file: testdata/simple/package.json
+          file: testdata/simple/ProjectSettings.asset
           major: true
       - name: Print results
         run: echo ${{ steps.simple_major.outputs.version }}
@@ -78,7 +67,7 @@ jobs:
         uses: ./
         id: custom
         with:
-          file: testdata/simple/package.json
+          file: testdata/simple/ProjectSettings.asset
           regex: '^(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)$'
           major: true
           minor: true
@@ -99,7 +88,7 @@ jobs:
         uses: ./
         id: prerelease
         with:
-          file: testdata/prerelease/package.json
+          file: testdata/prerelease/ProjectSettings.asset
           major: true
           minor: true
           patch: true
@@ -119,7 +108,7 @@ jobs:
         uses: ./
         id: buildmeta
         with:
-          file: testdata/buildmeta/package.json
+          file: testdata/buildmeta/ProjectSettings.asset
           major: true
           minor: true
           patch: true
@@ -139,7 +128,7 @@ jobs:
         uses: ./
         id: complex
         with:
-          file: testdata/complex/package.json
+          file: testdata/complex/ProjectSettings.asset
           major: true
           minor: true
           patch: true
